@@ -1,0 +1,207 @@
+---
+title: "BA Assignment in R"
+output: pdf_document
+name: PRITI DUTTA (PP2418)
+source: Sakar, C. & Kastro, Y. (2018). Online Shoppers Purchasing Intention Dataset [Dataset]. UCI Machine Learning Repository. 
+        https://doi.org/10.24432/C5F88Q.
+---
+
+```{r}
+# Load necessary libraries
+
+library(ggplot2)                                                                # Used for creating visualizations like scatter plots, histograms, etc.
+library(dplyr)                                                                  # Provides functions for data manipulation such as filter, select, mutate, and summarize
+library(corrplot)                                                               # Useful for plotting correlation matrices to visualize relationships between variables
+library(caret)                                                                  # For confusion matrix and performance metrics to evaluate how good the prediction model is 
+library(pROC)                                                                   # To draw an ROC curve, and to Calculate AUC (Area Under Curve) for evaluating model performance
+library(rpart)                                                                  # Load rpart for building decision tree models
+library(rpart.plot)                                                             # Load rpart.plot to visually plot and interpret the tree structure
+library(randomForest)                                                           # Used to build Random Forest models, for classification and regression
+```
+```{r}
+# Load data set
+df <- read.csv("C:\\Users\\PRITI\\Desktop\\BA assignment using R\\online_shoppers_intention.csv")
+# 'df' is now our working data frame containing the online shoppers' data
+
+# Explore the structure of the data set
+str(df)                                                                         # Gives an overview of the data types and variable structure
+summary(df)                                                                     # Provides summary statistics (mean, median, min, max, etc.) for each variable
+```
+```{r}
+# Convert relevant categorical variables columns to factors
+df$Month <- as.factor(df$Month)                                                 # Months like "Feb", "Mar", etc. are categories, not text
+df$VisitorType <- as.factor(df$VisitorType)                                     # Categories like "Returning_Visitor", "New_Visitor"
+df$Weekend <- as.factor(df$Weekend)                                             # TRUE or FALSE – should be treated as a category
+df$Revenue <- as.factor(df$Revenue)                                             # Target variable: whether the session led to a purchase
+```
+```{r}
+# Create a correlation heatmap for numeric variables
+numeric_df <- df %>% select(where(is.numeric))                                  # First, select only the numeric columns from the dataset
+corr_matrix <- cor(numeric_df)                                                  # Calculate the correlation matrix
+corrplot(corr_matrix, method = "color", type = "upper", tl.cex = 0.7)           # Plot the upper triangle of the correlation matrix
+```
+```{r}
+# Hypothesis 1: Testing if PageValues differ based on Revenue outcome
+
+ggplot(df, aes(x = Revenue, y = PageValues, fill = Revenue)) +                  # Create a boxplot to visually compare PageValues for Revenue = TRUE vs FALSE
+  geom_boxplot() +                                                              # To reveal if high PgaeValues laed to more purchases 
+  ggtitle("PageValues vs Revenue")
+
+cor.test(df$PageValues, as.numeric(as.factor(df$Revenue)))                      # Test for correlation between PageValues and Revenue (converted to numeric)
+# Note: We are using as.numeric(as.factor(df$Revenue)) to convert the logical factor (TRUE/FALSE) to numeric form, so that a Pearson correlation can be computed
+```
+```{r}
+# Hypothesis 2: Testing if Revenue is Influenced by SpecialDay
+
+ggplot(df, aes(x = SpecialDay, fill = Revenue)) +                               # Histogram to compare SpecialDay values across Revenue outcomes 
+  geom_histogram(position = "dodge", bins = 10, alpha = 0.7) +                  # To reveal if users closer to special days are more likely to make a purchase
+  ggtitle("SpecialDay vs Revenue")
+
+t.test(SpecialDay ~ Revenue, data = df)                                         # T-test to compare average SpecialDay values for purchases vs no purchases
+```
+```{r}
+# Hypothesis 3: Testing if Revenue is Dependent on Traffic Type
+
+ggplot(df, aes(x = TrafficType, fill = Revenue)) +                              # Stacked bar chart showing proportion of revenue outcomes across different traffic types
+  geom_bar(position = "fill") +                                                 # To reveal different traffic type causing purchases
+  ggtitle("Traffic Type vs Revenue") +
+  ylab("Proportion")
+
+chisq.test(table(df$TrafficType, df$Revenue))                                   # Running a Chi-square test to check if Revenue and TrafficType are dependent
+
+test <- chisq.test(table(df$TrafficType, df$Revenue),                           # Alternative version with simulated p-value for accuracy in case of small cell counts
+        simulate.p.value = TRUE, B=2000)  
+print(test)
+```
+```{r}
+# Logistic Regression Model to Predict Revenue
+
+df$Revenue_binary <- ifelse(df$Revenue == TRUE, 1, 0)                           # Convert Revenue to binary numeric (1 = TRUE, 0 = FALSE)
+
+# Splitting the data into training and test sets
+set.seed(123)                                                                   # for reproducibility
+train_index <- createDataPartition(df$Revenue_binary, p = 0.7, list = FALSE)
+train_data <- df[train_index, ]
+test_data <- df[-train_index, ]
+
+# Fit the logistic regression model
+model_logit <- glm(Revenue_binary ~ PageValues + SpecialDay + TrafficType,      # We'll use some selected predictors to compare prediction models
+                   data = train_data, 
+                   family = "binomial")
+
+summary(model_logit)                                                            # Summary of the logistic regression model
+
+pred_probs <- predict(model_logit, newdata = test_data, type = "response")      # Predict probabilities and classes
+pred_class <- ifelse(pred_probs > 0.5, 1, 0)
+
+conf_matrix <- confusionMatrix(as.factor(pred_class),                           # Evaluate the model for accuracy and p-value
+                               as.factor(test_data$Revenue_binary))
+print(conf_matrix)
+
+roc_obj <- roc(test_data$Revenue_binary, pred_probs)                            # ROC Curve and AUC
+plot(roc_obj, main = "ROC Curve - Logistic Regression")
+auc(roc_obj)
+```
+
+
+```{r}
+# Train the decision tree model on training data
+
+tree_model <- rpart(Revenue_binary ~ PageValues + SpecialDay + TrafficType,     # Using the same variables to compare
+                    data = train_data, method = "class")
+
+# Plot the decision tree
+rpart.plot(tree_model, extra = 106)                                             
+
+tree_predictions <- predict(tree_model, test_data, type = "class")              # Make predictions on the test set
+
+tree_predictions <- factor(tree_predictions, levels = c(0, 1))                  # Ensure predicted and actual values are factors with same levels
+test_data$Revenue_binary <- factor(test_data$Revenue_binary, levels = c(0, 1)) 
+
+length(tree_predictions) == length(test_data$Revenue_binary)                    # Confirm lengths match for confusion matrix
+
+confusionMatrix(tree_predictions, test_data$Revenue_binary)                     # Compute confusion matrix to evaluate the model for accuracy and others
+
+```
+```{r}
+# Random Forest Model for Predicting Revenue Generation
+
+train_data$Revenue_binary <- factor(train_data$Revenue_binary, levels = c(0, 1))# Ensure the target variable is a factor with levels 0 and 1 for classification
+test_data$Revenue_binary <- factor(test_data$Revenue_binary, levels = c(0, 1))
+
+# Build the Random Forest classification model using the same selected predictors 
+rf_model <- randomForest(Revenue_binary ~ PageValues + SpecialDay + TrafficType,       
+                         data = train_data,
+                         importance = TRUE)
+
+rf_predictions <- predict(rf_model, test_data)                                  # Predict classes (0 or 1) on the test data
+
+rf_predictions <- factor(rf_predictions, levels = c(0, 1))                      # Convert predictions to factor with same levels as test data to avoid errors in confusion matrix
+test_actuals <- factor(test_data$Revenue_binary, levels = c(0, 1))
+
+confusionMatrix(rf_predictions, test_actuals)                                   # Evaluate the model using confusion matrix and classification metrics
+
+```
+```{r}
+# Using Feature Importance to rank variables in terms of contribution
+
+features <- c("Administrative", "Administrative_Duration", "BounceRates",       # Define predictors and target
+              "ExitRates", "ProductRelated", "ProductRelated_Duration", 
+              "PageValues", "SpecialDay", "TrafficType")
+train_data_subset <- train_data[, c(features, "Revenue_binary")]
+
+# Train Random Forest
+rf_model <- randomForest(Revenue_binary ~ ., data = train_data_subset,          
+                         importance = TRUE)
+
+importance(rf_model)                                                            # View variable importance
+
+varImpPlot(rf_model, main = "Feature Importance from Random Forest")            # Plot variable importance
+
+```
+
+```{r}
+# Linear Regression Model to Predict Page Engagement
+# To show that my data is binary and a linear regression model is not the best fit for such a dataset
+
+set.seed(123)                                                                   # Set seed for reproducibility
+
+engagement_data <- df[, c("PageValues", "ExitRates", "BounceRates",             # Select relevant predictors for engagement
+                          "ProductRelated_Duration")] 
+# Note: These are behavioral features that could affect perceived value
+
+engagement_data <- na.omit(engagement_data)                                     # Remove any rows with NA values (just in case)
+
+train_index <- createDataPartition(engagement_data$PageValues, p = 0.8,         # Split into train and test sets
+                                   list = FALSE)
+train_data <- engagement_data[train_index, ]
+test_data <- engagement_data[-train_index, ]
+
+# Fit the linear regression model
+lm_model <- lm(PageValues ~ ExitRates + BounceRates + ProductRelated_Duration, data = train_data)
+
+summary(lm_model)                                                               # Print summary of the model
+
+lm_predictions <- predict(lm_model, newdata = test_data)                        # Predict on test data
+
+lm_rmse <- RMSE(lm_predictions, test_data$PageValues)                           # Evaluate model performance
+lm_r2 <- R2(lm_predictions, test_data$PageValues)
+
+cat("\nModel Performance (Linear Regression):")                                 # Output performance metrics
+cat("\nRMSE:", round(lm_rmse, 4))
+cat("\nR-squared:", round(lm_r2, 4))
+
+```
+
+---
+
+Thank you for your time.
+
+---
+
+```{r}
+install.packages("knitr")
+library(knitr)
+purl("BA Assignment Final.Rmd")
+```
+
