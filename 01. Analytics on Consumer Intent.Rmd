@@ -1,11 +1,3 @@
----
-title: "BA Assignment in R"
-output: pdf_document
-name: PRITI DUTTA (PP2418)
-source: Sakar, C. & Kastro, Y. (2018). Online Shoppers Purchasing Intention Dataset [Dataset]. UCI Machine Learning Repository. 
-        https://doi.org/10.24432/C5F88Q.
----
-
 ```{r}
 # Load necessary libraries
 
@@ -20,7 +12,7 @@ library(randomForest)                                                           
 ```
 ```{r}
 # Load data set
-df <- read.csv("C:\\Users\\PRITI\\Desktop\\BA assignment using R\\online_shoppers_intention.csv")
+df <- read.csv("C:\\Online_Shopper_Intention_data.csv")
 # 'df' is now our working data frame containing the online shoppers' data
 
 # Explore the structure of the data set
@@ -102,8 +94,6 @@ roc_obj <- roc(test_data$Revenue_binary, pred_probs)                            
 plot(roc_obj, main = "ROC Curve - Logistic Regression")
 auc(roc_obj)
 ```
-
-
 ```{r}
 # Train the decision tree model on training data
 
@@ -121,7 +111,6 @@ test_data$Revenue_binary <- factor(test_data$Revenue_binary, levels = c(0, 1))
 length(tree_predictions) == length(test_data$Revenue_binary)                    # Confirm lengths match for confusion matrix
 
 confusionMatrix(tree_predictions, test_data$Revenue_binary)                     # Compute confusion matrix to evaluate the model for accuracy and others
-
 ```
 ```{r}
 # Random Forest Model for Predicting Revenue Generation
@@ -140,7 +129,6 @@ rf_predictions <- factor(rf_predictions, levels = c(0, 1))                      
 test_actuals <- factor(test_data$Revenue_binary, levels = c(0, 1))
 
 confusionMatrix(rf_predictions, test_actuals)                                   # Evaluate the model using confusion matrix and classification metrics
-
 ```
 ```{r}
 # Using Feature Importance to rank variables in terms of contribution
@@ -157,9 +145,7 @@ rf_model <- randomForest(Revenue_binary ~ ., data = train_data_subset,
 importance(rf_model)                                                            # View variable importance
 
 varImpPlot(rf_model, main = "Feature Importance from Random Forest")            # Plot variable importance
-
 ```
-
 ```{r}
 # Linear Regression Model to Predict Page Engagement
 # To show that my data is binary and a linear regression model is not the best fit for such a dataset
@@ -190,18 +176,4 @@ lm_r2 <- R2(lm_predictions, test_data$PageValues)
 cat("\nModel Performance (Linear Regression):")                                 # Output performance metrics
 cat("\nRMSE:", round(lm_rmse, 4))
 cat("\nR-squared:", round(lm_r2, 4))
-
 ```
-
----
-
-Thank you for your time.
-
----
-
-```{r}
-install.packages("knitr")
-library(knitr)
-purl("BA Assignment Final.Rmd")
-```
-
